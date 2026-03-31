@@ -1,63 +1,31 @@
-const noblox = require('noblox.js');
-const fs = require('fs');
-const path = require('path');
+export default async function handler(req, res) {
+    const query = req.query.q;
 
-// Command line arguments:
-// node upload.js <modelFilePath> <name> <description> [groupId] <cookie>
-// All arguments are required except groupId (optional).
-async function main() {
-    const args = process.argv.slice(2);
-    if (args.length < 4) {
-        console.error('Usage: node upload.js <modelFilePath> <name> <description> [groupId] <cookie>');
-        process.exit(1);
-    }
-
-    const modelPath = args[0];
-    const name = args[1];
-    const description = args[2];
-    let groupId = null;
-    let cookieIndex = 3;
-
-    // If the third argument is a number, treat it as groupId
-    if (!isNaN(parseInt(args[3]))) {
-        groupId = parseInt(args[3]);
-        cookieIndex = 4;
-    }
-
-    const cookie = args[cookieIndex];
-    if (!cookie) {
-        console.error('Cookie not provided');
-        process.exit(1);
+    if (!query) {
+        return res.status(400).json({ error: "Missing query" });
     }
 
     try {
-        // Set cookie for authentication
-        await noblox.setCookie(cookie);
+        const r = await fetch("https://apis.roblox.com/toolbox/v2/assets:search", {
+            method: "POST",
+            headers: {
+                "x-api-key": process.env.ROBLOX_API_KEY,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                searchCategoryType: "Model",
+                query: query,
+                maxPageSize: 10
+            })
+        });
 
-        // Read model file as a stream (supports large files)
-        const modelStream = fs.createReadStream(modelPath);
+        const data = await r.json();
+        res.status(200).json(data);
 
-        // Upload options
-        const options = {
-            name: name,
-            description: description,
-            copyLocked: false,      // allow copying? adjust as needed
-            allowComments: false    // allow comments? adjust as needed
-        };
-        if (groupId) {
-            options.groupId = groupId;
-        }
-
-        // Upload the model
-        const uploadResult = await noblox.uploadModel(modelStream, options);
-        // uploadResult is an object: { assetId, ... } according to noblox.js docs
-
-        // Output the asset ID as JSON
-        console.log(JSON.stringify({ success: true, assetId: uploadResult.assetId }));
     } catch (err) {
-        console.error(JSON.stringify({ success: false, error: err.message }));
-        process.exit(1);
+        res.status(500).json({
+            error: "failed",
+            message: err.message
+        });
     }
 }
-
-main();
